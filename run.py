@@ -6,8 +6,11 @@ import time
 import numpy as np
 import rembg
 import torch
+import trimesh
 import xatlas
 from PIL import Image
+from trimesh.visual import TextureVisuals
+from trimesh.visual.material import PBRMaterial
 
 from tsr.system import TSR
 from tsr.utils import remove_background, resize_foreground, save_video
@@ -182,8 +185,28 @@ for i, image in enumerate(images):
         timer.end("Baking texture")
 
         timer.start("Exporting mesh and texture")
-        xatlas.export(out_mesh_path, meshes[0].vertices[bake_output["vmapping"]], bake_output["indices"], bake_output["uvs"], meshes[0].vertex_normals[bake_output["vmapping"]])
-        Image.fromarray((bake_output["colors"] * 255.0).astype(np.uint8)).transpose(Image.FLIP_TOP_BOTTOM).save(out_texture_path)
+        texture_img = Image.fromarray((bake_output["colors"] * 255.0).astype(np.uint8)).transpose(Image.FLIP_TOP_BOTTOM)
+        texture_img.save(out_texture_path)
+
+        if args.model_save_format == "glb":
+            material = PBRMaterial(baseColorTexture=texture_img)
+            visuals = TextureVisuals(uv=bake_output["uvs"], material=material)
+            out_mesh = trimesh.Trimesh(
+                vertices=meshes[0].vertices[bake_output["vmapping"]],
+                faces=bake_output["indices"],
+                vertex_normals=meshes[0].vertex_normals[bake_output["vmapping"]],
+                visual=visuals,
+                process=False,
+            )
+            out_mesh.export(out_mesh_path)
+        else:
+            xatlas.export(
+                out_mesh_path,
+                meshes[0].vertices[bake_output["vmapping"]],
+                bake_output["indices"],
+                bake_output["uvs"],
+                meshes[0].vertex_normals[bake_output["vmapping"]],
+            )
         timer.end("Exporting mesh and texture")
     else:
         timer.start("Exporting mesh")
